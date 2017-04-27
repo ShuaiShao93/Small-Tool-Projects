@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://code.jquery.com/jquery-3.2.1.js" integrity="sha256-DZAnKJ/6XZ9si04Hgrsxu/8s717jcIzLy3oi35EouyE=" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <input type="range" name="thermal" min="-3" max="3" step="0.1">
+    <script>
+        $(function() {
+            var res = []
+            setInterval(clearAll(res), 3000);
+        });
+
+        function clearAll(res) {
+            res.push([])
+            $("input").each(function() {
+                res[res.length - 1][$(this).attr("name")] = $("this").val();
+                $(this).val(0);
+            })
+        }
+    </script>
+</body>
+
+</html>
