@@ -3,46 +3,125 @@
 
 <head>
     <script src="https://code.jquery.com/jquery-3.2.1.js" integrity="sha256-DZAnKJ/6XZ9si04Hgrsxu/8s717jcIzLy3oi35EouyE=" crossorigin="anonymous"></script>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 </head>
 
 <body>
-    <a id="download" href="#">Download Report</a>
-    <form>
-        Thermal Sensation:
-        <input type="range" name="Thermal Sensation" min="-3" max="3" step="0.1">
-        <br />
-        Thermal Comfort:
-        <input type="range" name="Thermal Comfort" min="-3" max="3" step="0.1">
-        <br />
-        Thermal Acceptation:
-        <input type="range" name="Thermal Acceptation" min="-3" max="3" step="0.1">
-        <br />
-        Humidity Preference:
-        <input type="range" name="Humidity Preference" min="-3" max="3" step="0.1">
-        <br />
-        Velocity Preference:
-        <input type="range" name="Velocity Preference" min="-3" max="3" step="0.1">
-        <br />
+    <div class="page-header">
+        <h1 class="text-center">Fuck HJW</h1>
+    </div>
+    <form id="form">
+        <div class="row">
+            <div class="form-group col-md-4 col-md-offset-2">
+                <label for="Thermal Sensation">Sensation: </label>
+                <input type="range" name="Thermal Sensation" min="-3" max="3" step="0.1">
+                <label for="Thermal Comfort">Thermal Comfort: </label>
+                <input type="range" name="Thermal Comfort" min="-3" max="3" step="0.1">
+                <label for="Thermal Acceptation"> Thermal Acceptation: </label>
+                <input type="range" name="Thermal Acceptation" min="-3" max="3" step="0.1">
+                <label for="Humidity Preference"> Humidity Preference:</label>
+                <input type="range" name="Humidity Preference" min="-3" max="3" step="0.1">
+                <label for="Velocity Preference"> Velocity Preference:</label>
+                <input type="range" name="Velocity Preference" min="-3" max="3" step="0.1">
+            </div>
+            <div class="col-md-2 col-md-offset-2">
+                <h1 id="timer"></h1>
+            </div>
+        </div>
     </form>
+    <div class="row">
+        <div id="warning" class="col-md-4 col-md-offset-4 alert alert-warning" role="alert" style="display:none"> Don't forget to save the report! If you don't need it, please click start button again. </div>
+    </div>
+    <div class="row">
+        <div class="col-md-1 col-md-offset-5">
+            <button class="btn btn-primary btn-large" id="start">Start!</button>
+        </div>
+        <div class="col-md-offset-1">
+            <a class="btn btn-primary btn-large" id="download" href="#">End and Download Report</a>
+        </div>
+    </div>
     <script>
+        var interval = 0.1;
+        var ut, res;
         $(function() {
             res = [];
-            setInterval(clearAll, 10000);
+            var rS = Math.ceil(interval * 60 >= 0) ? Math.ceil(interval * 60) : 0;
+            var minute = parseInt(rS / 60);
+            var second = rS - minute * 60;
+            if (second < 10) {
+                second = "0" + second;
+            }
+            $("#timer").text(minute + ":" + second);
+            $("#start").click(resetAll);
             $("#download").click(downloadCSV);
         });
 
         function clearAll() {
+            if ($("#warning").css("display") != "none") {
+                $("#warning").css("display", "none");
+            }
             res.push([]);
             $("input").each(function() {
                 res[res.length - 1][$(this).attr("name")] = this.value;
                 $(this).val(0);
-            })
+            });
+            var date = new Date();
+            if (ut != undefined) {
+                clearInterval(ut);
+            }
+            ut = setInterval(function() {
+                updateTimer(date);
+            }, 500);
+        }
+
+        function resetAll() {
+            if ($("#warning").css("display") == "none" && res.length > 0) {
+                $("#warning").css("display", "block");
+                return;
+            } else if ($("#warning").css("display") != "none") {
+                $("#warning").css("display", "none");
+            }
+            res = [];
+            $("#form")[0].reset();
+            var date = new Date();
+            if (ut != undefined) {
+                clearInterval(ut);
+            }
+            ut = setInterval(function() {
+                updateTimer(date);
+            }, 500);
+        }
+
+        function updateTimer(date) {
+            var curDate = new Date();
+            var diffMS = curDate - date;
+            var diffS = diffMS / 1000.0;
+            var rS = Math.ceil(interval * 60 - diffS >= 0) ? Math.ceil(interval * 60 - diffS) : 0;
+            var minute = parseInt(rS / 60);
+            var second = rS - minute * 60;
+            if (second < 10) {
+                second = "0" + second;
+            }
+            $("#timer").text(minute + ":" + second);
+            if (rS == 0) {
+                clearAll();
+            }
         }
 
         function convertArrayToCSV(data) {
             var columnDelimiter = ',';
             var lineDelimiter = '\n';
 
+            if (data.length == 0) {
+                return null;
+            }
             var keys = Object.keys(data[0]);
 
             var result = columnDelimiter;
@@ -50,7 +129,7 @@
             result += lineDelimiter;
 
             lineIdx = 1
-            data.forEach(function(item){
+            data.forEach(function(item) {
                 var ctr = 0;
                 result += lineIdx + columnDelimiter;
                 keys.forEach(function(key) {
@@ -58,10 +137,10 @@
                         result += columnDelimiter;
                     }
                     result += item[key];
-                    ctr ++;
+                    ctr++;
                 });
                 result += lineDelimiter;
-                lineIdx ++;
+                lineIdx++;
             });
 
             return result;
@@ -78,6 +157,11 @@
             var anchor = $("#download");
             anchor.attr('href', data);
             anchor.attr('download', "report.csv");
+
+            res = [];
+            if (ut != undefined) {
+                clearInterval(ut);
+            }
         }
     </script>
 </body>
