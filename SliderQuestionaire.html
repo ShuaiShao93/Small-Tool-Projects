@@ -6,19 +6,78 @@
 </head>
 
 <body>
-    <input type="range" name="thermal" min="-3" max="3" step="0.1">
+    <a id="download" href="#">Download Report</a>
+    <form>
+        Thermal Sensation:
+        <input type="range" name="Thermal Sensation" min="-3" max="3" step="0.1">
+        <br />
+        Thermal Comfort:
+        <input type="range" name="Thermal Comfort" min="-3" max="3" step="0.1">
+        <br />
+        Thermal Acceptation:
+        <input type="range" name="Thermal Acceptation" min="-3" max="3" step="0.1">
+        <br />
+        Humidity Preference:
+        <input type="range" name="Humidity Preference" min="-3" max="3" step="0.1">
+        <br />
+        Velocity Preference:
+        <input type="range" name="Velocity Preference" min="-3" max="3" step="0.1">
+        <br />
+    </form>
     <script>
         $(function() {
-            var res = []
-            setInterval(clearAll(res), 3000);
+            res = [];
+            setInterval(clearAll, 10000);
+            $("#download").click(downloadCSV);
         });
 
-        function clearAll(res) {
-            res.push([])
+        function clearAll() {
+            res.push([]);
             $("input").each(function() {
-                res[res.length - 1][$(this).attr("name")] = $("this").val();
+                res[res.length - 1][$(this).attr("name")] = this.value;
                 $(this).val(0);
             })
+        }
+
+        function convertArrayToCSV(data) {
+            var columnDelimiter = ',';
+            var lineDelimiter = '\n';
+
+            var keys = Object.keys(data[0]);
+
+            var result = columnDelimiter;
+            result += keys.join(columnDelimiter);
+            result += lineDelimiter;
+
+            lineIdx = 1
+            data.forEach(function(item){
+                var ctr = 0;
+                result += lineIdx + columnDelimiter;
+                keys.forEach(function(key) {
+                    if (ctr > 0) {
+                        result += columnDelimiter;
+                    }
+                    result += item[key];
+                    ctr ++;
+                });
+                result += lineDelimiter;
+                lineIdx ++;
+            });
+
+            return result;
+        }
+
+        function downloadCSV() {
+            var csv = convertArrayToCSV(res);
+            if (csv == null) return;
+
+            if (!csv.match(/^data:text\/csv/i)) {
+                csv = 'data:text/csv;charset=utf-8,' + csv;
+            }
+            var data = encodeURI(csv);
+            var anchor = $("#download");
+            anchor.attr('href', data);
+            anchor.attr('download', "report.csv");
         }
     </script>
 </body>
