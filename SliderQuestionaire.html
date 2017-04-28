@@ -49,9 +49,10 @@
     </div>
     <script>
         var interval = 0.1;
-        var ut, res;
+        var ut, res, downloaded;
         $(function() {
             res = [];
+            downloaded = false;
             var rS = Math.ceil(interval * 60 >= 0) ? Math.ceil(interval * 60) : 0;
             var minute = parseInt(rS / 60);
             var second = rS - minute * 60;
@@ -82,13 +83,14 @@
         }
 
         function resetAll() {
-            if ($("#warning").css("display") == "none" && res.length > 0) {
+            if ($("#warning").css("display") == "none" && res.length > 0 && !downloaded) {
                 $("#warning").css("display", "block");
                 return;
             } else if ($("#warning").css("display") != "none") {
                 $("#warning").css("display", "none");
             }
             res = [];
+            downloaded = false;
             $("#form")[0].reset();
             var date = new Date();
             if (ut != undefined) {
@@ -157,11 +159,7 @@
             var anchor = $("#download");
             anchor.attr('href', data);
             anchor.attr('download', "report.csv");
-
-            res = [];
-            if (ut != undefined) {
-                clearInterval(ut);
-            }
+            downloaded = true;
         }
     </script>
 </body>
