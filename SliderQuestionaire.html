@@ -11,6 +11,19 @@
 
     <!-- Latest compiled and minified JavaScript -->
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+    <style>
+        .sliderLab {
+            position: relative;
+            width: 20px;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        .slider {
+            margin-bottom: 2em;
+        }
+    </style>
 </head>
 
 <body>
@@ -20,18 +33,28 @@
     <form id="form">
         <div class="row">
             <div class="form-group col-md-4 col-md-offset-2">
-                <label for="Thermal Sensation">Sensation: </label>
-                <input type="range" name="Thermal Sensation" min="-3" max="3" step="0.1">
-                <label for="Thermal Comfort">Thermal Comfort: </label>
-                <input type="range" name="Thermal Comfort" min="-3" max="3" step="0.1">
-                <label for="Thermal Acceptation"> Thermal Acceptation: </label>
-                <input type="range" name="Thermal Acceptation" min="-3" max="3" step="0.1">
-                <label for="Humidity Preference"> Humidity Preference:</label>
-                <input type="range" name="Humidity Preference" min="-3" max="3" step="0.1">
-                <label for="Velocity Preference"> Velocity Preference:</label>
-                <input type="range" name="Velocity Preference" min="-3" max="3" step="0.1">
+                <div class="slider">
+                    <label for="Thermal Sensation">Thermal Sensation: </label>
+                    <input type="range" name="Thermal Sensation" min="-3" max="3" step="0.1">
+                </div>
+                <div class="slider">
+                    <label for="Thermal Comfort">Thermal Comfort: </label>
+                    <input type="range" name="Thermal Comfort" min="-3" max="3" step="0.1">
+                </div>
+                <div class="slider">
+                    <label for="Thermal Acceptation"> Thermal Acceptation: </label>
+                    <input type="range" name="Thermal Acceptation" min="-3" max="3" step="0.1">
+                </div>
+                <div class="slider">
+                    <label for="Humidity Preference"> Humidity Preference:</label>
+                    <input type="range" name="Humidity Preference" min="-3" max="3" step="0.1">
+                </div>
+                <div class="slider">
+                    <label for="Velocity Preference"> Velocity Preference:</label>
+                    <input type="range" name="Velocity Preference" min="-3" max="3" step="0.1">
+                </div>
             </div>
-            <div class="col-md-2 col-md-offset-2">
+            <div class="col-md-1 col-md-offset-2">
                 <h1 id="timer"></h1>
             </div>
         </div>
@@ -48,9 +71,10 @@
         </div>
     </div>
     <script>
-        var interval = 0.1;
+        var interval = 5;
         var ut, res, downloaded;
         $(function() {
+            init_sliderLab();
             res = [];
             downloaded = false;
             var rS = Math.ceil(interval * 60 >= 0) ? Math.ceil(interval * 60) : 0;
@@ -63,6 +87,28 @@
             $("#start").click(resetAll);
             $("#download").click(downloadCSV);
         });
+
+        function init_sliderLab() {
+            var labs = {
+                "Thermal Sensation": ["Cold", "Neutral", "Hot"],
+                "Thermal Comfort": ["Uncomfortable", "Neutral", "Comfortable"],
+                "Thermal Acceptation": ["Unacceptation", "Neutral", "Acceptation"],
+                "Humidity Preference": ["Less Wet", "Neutral", "More Wet"],
+                "Velocity Preference": ["Less Wind", "Neutral", "More Wind"]
+            };
+            $(".slider").each(function() {
+                var name = $("input", this).attr("name");
+                for (var i = 0; i < 3; i++) {
+                    // Create a new element and position it with percentages
+                    var el = $("<label class='sliderLab'>" + labs[name][i] + '</label>').css('left', (i / 3 * 100 + 10) + '%');
+
+                    // Add the element inside #slider
+                    $(this).append(el);
+
+                }
+
+            });
+        }
 
         function clearAll() {
             if ($("#warning").css("display") != "none") {
