@@ -1,0 +1,42 @@
+# HPA that uses the custom metric from prometheus adapter
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  namespace: {{ $.Values.namespace }}
+  name: hpa
+spec:
+  behavior:
+    scaleUp:
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 15
+      selectPolicy: Max
+      stabilizationWindowSeconds: 60
+    scaleDown:
+      policies:
+      - periodSeconds: 60
+        type: Percent
+        value: 20
+      selectPolicy: Max
+      stabilizationWindowSeconds: 600
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.consumer_name }}
+  minReplicas: 1
+  maxReplicas: {{ $.Values.max_replicas }}
+  metrics:
+  - type: Object
+    object:
+      metric:
+        name: job_consumer_ratio
+      describedObject:
+        apiVersion: "/v1"
+        kind: Service
+        name: rabbitmq-cluster
+      target:
+        type: Value
+        # Consumers from RMQ is the worker pods. So the target value is the concurrency value for each pod.
+        value: {{ .Values.concurrency }}
