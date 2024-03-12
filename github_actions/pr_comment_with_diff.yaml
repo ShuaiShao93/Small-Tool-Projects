@@ -1,0 +1,55 @@
+# Compare two yaml files, and update PR comments with the diff
+
+name: comment-diff
+description: Generate diff and print to PR comment.
+runs:
+  using: composite
+  steps:
+    - name: Generate diff
+      id: generate_diff
+      shell: bash
+      run: |
+        # Change all unwanted fields to IGNORED, to exclude them from the diff
+        KEYS_TO_FILTER=(
+          "updated"
+          "password"
+        )
+
+        for KEY in "${KEYS_TO_FILTER[@]}"; do
+          yq "(.. | select(has(\"${KEY}\")).${KEY}) = \"IGNORED\"" -i filtered-last-config.yaml
+          yq "(.. | select(has(\"${KEY}\")).${KEY}) = \"IGNORED\"" -i filtered-current-config.yaml
+        done
+
+        # Exit code is 1 if there are differences, so suppress it.
+        diff_output=$(diff -u filtered-last-config.yaml filtered-current-config.yaml || true)
+        # Truncate if more than 65536 characters
+        if [[ ${#diff_output} -gt 65536 ]]; then
+          diff_output="${diff_output:0:65500}"
+          diff_output+="\n... [Output truncated due to length]"
+        fi
+        # Write the output comment to a file.
+        # We do this because we have multiple lines and to set the output from one step to another, we would
+        # need to use a multi-line string, which is not supported in GitHub Actions as a step output.
+        output_prefix="Diff output after ignoring specified fields:"
+        if [[ ${#diff_output} -eq 0 ]]; then
+          output_string="${output_prefix} No changes."
+          echo "empty=true" >> "$GITHUB_OUTPUT"
+        else
+          output_string="${output_prefix}\n\n\`\`\`diff\n"${diff_output}"\n\`\`\`\n"
+          echo "empty=false" >> "$GITHUB_OUTPUT"
+        fi
+        # Write the output to a file with `echo -e` to interpret the escape sequences and write new lines.
+        echo -e "${output_string}" > diff-comment.txt
+
+    # This step allows us to post comments based on output of the previous step.
+    # It will only post a comment if there are differences.
+    # If there are no differences, it will only update the previous comment if it exists.
+    - uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: diff-output
+        # If there are no differences, hide the previous comment if it exists.
+        hide: ${{ steps.generate_diff.outputs.empty }}
+        # Doesn't post new comment if there is no diff
+        only_update: ${{ steps.generate_diff.outputs.empty }}
+        hide_classify: "OUTDATED"
+        path: diff-comment.txt
