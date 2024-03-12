@@ -1,0 +1,145 @@
+# A typical workflow that builds a server image from branch, pushes to GCR.
+# Then switch to deploy repo, builds k8s manifest, and deploy using the pushed server image.
+
+name: build-docker-and-deploy-k8
+
+on:
+  workflow_dispatch:
+    inputs:
+      server-branch:
+        description: "The branch name of the server repo"
+        required: true
+        default: "main"
+      deploy-branch:
+        description: "The branch name of the deploy repo"
+        required: true
+        default: "main"
+
+env:
+  GCP_PROJECT_ID: 1234567
+  # Reserved
+  STATIC_IP: 12.34.56.78
+  
+jobs:
+  build-server:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
+    if: ${{ github.event.inputs.server-branch != 'main' }}
+
+    steps:
+      - name: checkout server
+        uses: actions/checkout@v4
+        with:
+          repository: "org/server"
+          ref: ${{ github.event.inputs.server-branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Needs to set up workload_identity on GCP and whilelist this repo before
+      - name: Gcp auth
+        id: gcp_auth
+        uses: "google-github-actions/auth@v2"
+        with:
+          token_format: access_token
+          workload_identity_provider: "projects/${{ env.GCP_PROJECT_ID }}/locations/global/workloadIdentityPools/github/providers/github"
+          service_account: "github-actions@org.iam.gserviceaccount.com"
+      
+      - name: Login to GCR Image Registry
+        uses: docker/login-action@v3
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.gcp_auth.outputs.access_token }}
+
+      - name: Pre-process server-branch for tag
+        id: preprocess_tag
+        run: |
+          echo "PROCESSED_TAG=$(echo '${{ github.event.inputs.server-branch }}' | sed 's/\//-/g')" >> $GITHUB_ENV
+
+      - name: Docker Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          build-args: |
+            EXAMPLE_ARGS=${{ secrets.EXAMPLE_ARGS }}
+          tags: gcr.io/org/server:${{ env.PROCESSED_TAG }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [build-server]
+    if: ${{ ! failure() && ! cancelled() }}
+    permissions:
+      contents: "read"
+      id-token: "write"
+
+    steps:
+      - name: update ubuntu, install dependencies
+        shell: bash
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install curl -y
+
+          # install helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+          # install kubeconform
+          wget https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-386.tar.gz
+          tar xf kubeconform-linux-386.tar.gz
+          sudo cp kubeconform /usr/local/bin
+
+          # install pinned version of kubectl
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.23.6/bin/linux/amd64/kubectl
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+
+      - name: gcp auth
+        id: gcp_auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/${{ env.GCP_PROJECT_ID }}/locations/global/workloadIdentityPools/github/providers/github"
+          service_account: "github-actions@org.iam.gserviceaccount.com"
+
+      - name: get-credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: my-cluster
+          location: us-central1-c
+      
+      - name: checkout deploy
+        uses: actions/checkout@v4
+        with:
+          repository: "org/deploy"
+          ref: ${{ github.event.inputs.deploy-branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: "deploy"
+
+      - name: generate manifest
+        shell: bash
+        run: |
+          cd deploy
+
+          SERVER_TAG=$(echo '${{ github.event.inputs.server-branch }}' | sed 's/\//-/g')
+          helm template platform \
+          --values=release-versions.yaml \
+          --set server_image_tag=$SERVER_TAG \
+          > ../manifest.yaml
+
+      - name: validate manifest
+        shell: bash
+        run: kubeconform --ignore-missing-schemas manifest.yaml
+
+      - name: deploy
+        shell: bash
+        run: |
+          until kubectl apply -f manifest.yaml
+          do
+            echo "Exit code was not 0, retrying in 30 seconds. This apply can be safely retried."
+            sleep 30
+          done
+
+      - name: update external IP
+        shell: bash
+        run: |
+          kubectl patch svc -n default ingress-nginx-controller -p '{"spec": {"loadBalancerIP": "${{ env.STATIC_IP }}"}}'
