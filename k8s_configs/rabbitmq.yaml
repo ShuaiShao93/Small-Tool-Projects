@@ -1,0 +1,56 @@
+# RMQ cluster that uses operator and is in HA mode.
+
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rmq_cluster
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 2
+  persistence:
+    storageClassName: {{ .Values.storageclass_name }}
+    storage: 5Gi
+  resources:
+    requests:
+      cpu: 256m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                  - core
+  rabbitmq:
+    additionalConfig: |
+      # https://www.rabbitmq.com/prometheus.html#metric-aggregation
+      prometheus.return_per_object_metrics = true
+    additionalPlugins:
+      - rabbitmq_shovel
+      - rabbitmq_shovel_management
+---
+# Create a highly available RabbitMQ cluster.
+# https://github.com/rabbitmq/messaging-topology-operator/tree/main/docs/examples
+# Reference: https://www.infracloud.io/blogs/setup-rabbitmq-ha-mode-kubernetes-operator/
+apiVersion: rabbitmq.com/v1beta1
+kind: Policy
+metadata:
+  name: rmq_cluster-ha-policy
+  namespace: {{ .Values.namespace }}
+spec:
+  name: sync-policy
+  vhost: "/" # default to '/' if not provided
+  pattern: "" # regex used to match queues and exchanges
+  applyTo: "all" # set to 'queues', 'exchanges', or 'all'
+  definition:
+    ha-mode:
+     all
+    ha-sync-mode:
+     automatic
+  rabbitmqClusterReference:
+    name: rmq_cluster
