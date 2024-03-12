@@ -1,0 +1,31 @@
+name: Check and Report Endpoint
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 16 * * *' # Runs at 16:00 UTC every day
+
+jobs:
+  check-website:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if website is up
+        id: check_site
+        run: |
+          if curl --head --silent --fail ${{ env.ENDPOINT }}; then
+            echo "::set-output name=site_up::true"
+          else
+            echo "::set-output name=site_up::false"
+          fi
+
+      - name: Send message to Slack if site is up
+        if: steps.check_site.outputs.site_up == 'true'
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_USERNAME: "Github Actions"
+          SLACK_ICON_EMOJI: ":satellite_antenna:"
+          SLACK_COLOR: "#36a64f"
+          SLACK_TITLE: "${{ env.ENDPOINT }} is up"
+          SLACK_MESSAGE: "${{ env.ENDPOINT }} is up and can be accessed with curl."
+          SLACK_FOOTER: "Link to Workflow Page"
