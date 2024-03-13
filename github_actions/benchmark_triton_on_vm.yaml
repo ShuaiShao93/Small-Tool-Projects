@@ -1,4 +1,4 @@
-# Builds an image from branch, run it on a gce instance, run benchmark against it
+# Builds an image from branch, run it on a gce instance, run benchmark against it, and commit results to the branch
 
 name: Latency Benchmark
 
@@ -23,7 +23,7 @@ jobs:
     permissions:
       contents: "read"
       id-token: "write"
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
+    if: ${{ github.ref != 'refs/heads/main' }}
 
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -77,9 +77,10 @@ jobs:
           tags: gcr.io/org/ml-server:${{ env.PROCESSED_TAG }}
 
   benchmark:
-    runs-on: ubuntu-latest
+    # Pin the version because we use a fixed version for cuda-keyring
+    runs-on: ubuntu-22.04
     permissions:
-      contents: "read"
+      contents: "write"
       id-token: "write"
     needs: docker-build-and-push
     if: ${{ ! failure() && ! cancelled() }}
@@ -140,6 +141,17 @@ jobs:
             docker run --shm-size=256m --rm -d -p 8000:8000 -e ENV=${{ secrets.SOME_TOKEN }} gcr.io/org/ml-server:${{ env.USE_TAG }}
           '
 
+      - name: Install perf_analyzer
+        run: |
+          set -e
+
+          # Perf analyzer depends on libcudart, even if there is no GPU on the machine
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt update
+          sudo apt install -y python3-pip libb64-dev cuda-cudart-12-4
+          sudo pip3 install tritonclient[http]
+
       - name: Wait for Service to be Ready
         run: |
           echo "Waiting for service at ${{ env.VM_PUBLIC_IP }}:8000/v2/health/ready to be ready..."
@@ -150,15 +162,49 @@ jobs:
 
       - name: Run Benchmark
         run: |
+          set -e
           echo "Running benchmark for ${{ github.event.inputs.model-name }}"
-
-          perf_analyzer -m ${{ github.event.inputs.model-name }} -u ${{ env.VM_PUBLIC_IP }}:8000 --input-data="random" --shape input_text:8x500 2>&1 | tee perf.txt
+          for string_length in 100 500; do
+            command="perf_analyzer \
+              -m ${{ github.event.inputs.model-name }} \
+              -u ${{ env.VM_PUBLIC_IP }}:8000 \
+              --input-data=\"random\" \
+              --measurement-interval=60000 \
+              --stability-percentage=20 \
+              -b 8 \
+              --string-length=\"$string_length\" \
+            "
+            echo "$command" | tee -a perf.txt
+            echo -e "\n\n" | tee -a perf.txt
+            eval $command 2>&1 | tee -a perf.txt
+            echo -e "\n\n" | tee -a perf.txt
+          done
 
       - name: Upload Benchmark Results
         uses: actions/upload-artifact@v2
         with:
           name: benchmark-results
           path: perf.txt
+
+      - name: Copy Benchmark Results
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          MODEL_NAME="${{ github.event.inputs.model-name }}"
+          # Copy perf.txt to the specified directory, creating it if necessary
+          mkdir -p models/$MODEL_NAME
+          cp perf.txt models/$MODEL_NAME/
+
+      - name: Commit Performance Results
+        if: ${{ github.ref != 'refs/heads/main' }}
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: "Add performance results for ${{ github.event.inputs.model-name }}"
+          add: "models/${{ github.event.inputs.model-name }}/perf.txt"
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+          push: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Cleans up VM in a separate job to ensure it runs even if the benchmark fails.
   cleanup_vm:
