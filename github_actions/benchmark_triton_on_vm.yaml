@@ -138,7 +138,7 @@ jobs:
         run: |
           gcloud compute ssh ${{ env.INSTANCE_NAME }} --zone=${{ env.ZONE }} --command='
             docker pull gcr.io/org/ml-server:${{ env.USE_TAG }} &&
-            docker run --shm-size=256m --rm -d -p 8000:8000 -e ENV=${{ secrets.SOME_TOKEN }} gcr.io/org/ml-server:${{ env.USE_TAG }}
+            docker run --cpus="1" --rm -d -p 8000:8000 -e ENV=${{ secrets.SOME_TOKEN }} gcr.io/org/ml-server:${{ env.USE_TAG }}
           '
 
       - name: Install perf_analyzer
@@ -202,6 +202,7 @@ jobs:
           add: "models/${{ github.event.inputs.model-name }}/perf.txt"
           committer_name: GitHub Actions
           committer_email: actions@github.com
+          pull: --rebase --autostash
           push: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
