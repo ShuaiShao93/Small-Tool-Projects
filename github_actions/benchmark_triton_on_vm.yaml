@@ -14,6 +14,15 @@ env:
   GCP_PROJECT_ID: 12345
   ZONE: "us-central1-c"
   INSTANCE_NAME: "wizard-benchmark-${GITHUB_RUN_NUMBER}"
+  # Config file is like:
+  # ModelA:
+  #   measurement_interval: 90000
+  #   stability_percentage: 20
+  #   batch_size: 8
+  #   string_length: [100, 500]
+  # ModelB:
+  #   ...
+  BENCHMARK_CONFIG: "latency_benchmark/latency_benchmark_config.yaml"
 
 jobs:
   docker-build-and-push:
@@ -88,6 +97,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify Model and Configuration
+        run: |
+          set -e
+          # install yq for yaml parsing
+          sudo snap install yq
+          MODEL_NAME="${{ github.event.inputs.model-name }}"
+          MODEL_DIR="models/$MODEL_NAME"
+          if [ ! -d "$MODEL_DIR" ]; then
+            echo "Directory $MODEL_DIR does not exist."
+            exit 1
+          fi
+          MODEL_CONFIG=$(yq e ".${MODEL_NAME}" "$BENCHMARK_CONFIG")
+          if [ "$MODEL_CONFIG" = "null" ]; then
+            echo "${MODEL_NAME} does not exist in $BENCHMARK_CONFIG."
+            exit 1
+          fi
+          echo "Verification successful: ${MODEL_NAME} exists both as a directory and in the configuration file."
 
       - name: Extract image tag
         run: |
@@ -164,20 +191,31 @@ jobs:
         run: |
           set -e
           echo "Running benchmark for ${{ github.event.inputs.model-name }}"
-          for string_length in 100 500; do
+
+          MEASUREMENT_INTERVAL=$(yq e ".${{ github.event.inputs.model-name }}.measurement_interval" $BENCHMARK_CONFIG)
+          BATCH_SIZE=$(yq e ".${{ github.event.inputs.model-name }}.batch_size" $BENCHMARK_CONFIG)
+          STRING_LENGTHS=$(yq e ".${{ github.event.inputs.model-name }}.string_length[]" $BENCHMARK_CONFIG)
+          STABILITY_PERCENTAGE=$(yq e ".${{ github.event.inputs.model-name }}.stability_percentage" $BENCHMARK_CONFIG)
+          SHAPE=$(yq e ".${{ github.event.inputs.model-name }}.shape" $BENCHMARK_CONFIG)
+          for STRING_LENGTH in $STRING_LENGTHS; do
             command="perf_analyzer \
               -m ${{ github.event.inputs.model-name }} \
               -u ${{ env.VM_PUBLIC_IP }}:8000 \
               --input-data=\"random\" \
-              --measurement-interval=60000 \
-              --stability-percentage=20 \
-              -b 8 \
-              --string-length=\"$string_length\" \
+              --measurement-interval=\"$MEASUREMENT_INTERVAL\" \
+              -b \"$BATCH_SIZE\" \
+              --string-length=\"$STRING_LENGTH\" \
             "
+            if [ "$STABILITY_PERCENTAGE" != "null" ]; then
+              command="$command --stability-percentage=\"$STABILITY_PERCENTAGE\""
+            fi
+            if [ "$SHAPE" != "null" ]; then
+              command="$command --shape=\"$SHAPE\""
+            fi
             echo "$command" | tee -a perf.txt
-            echo -e "\n\n" | tee -a perf.txt
+            echo -e "\n" | tee -a perf.txt
             eval $command 2>&1 | tee -a perf.txt
-            echo -e "\n\n" | tee -a perf.txt
+            echo -e "\n" | tee -a perf.txt
           done
 
       - name: Upload Benchmark Results
