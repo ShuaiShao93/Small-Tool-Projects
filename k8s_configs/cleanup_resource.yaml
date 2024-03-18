@@ -1,0 +1,148 @@
+# This job is used to clean up resources that are not needed in the cluster.
+# Reason is that releasing a new config won't delete resources that are deleted from the config.
+# This job is run once 5min after every deployment.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: resource-manager-global
+rules:
+  - apiGroups: ["", "apps"]
+    resources: ["configmaps", "pods", "deployments", "statefulsets", "services"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "statefulsets/scale"]
+    verbs: ["update", "patch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["delete"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["delete"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: resource-manager-global-binding
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceaccount_name }}
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: ClusterRole
+  name: resource-manager-global
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cleanup-resources
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: cleanup-resources
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: cleanup-resources
+    spec:
+      serviceAccountName:  {{ .Values.serviceaccount_name }}
+      restartPolicy: Never
+      containers:
+      - name: cleanup-resources-container
+        image: {{ .Values.alpine_image }}
+        command: ["sh"]
+        args:
+        - -c
+        - |
+          set -ex
+
+          echo "Waiting for 5 minutes to start job in order to avoid conflict."
+          sleep 5m
+
+          echo "Installing curl..."
+          apk update
+          apk add curl
+          curl --version
+          echo "curl installed"
+
+          echo "Installing kubectl..."
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          echo "kubectl installed"
+
+          # Function to check if a Kubernetes resource exists
+          resource_exists() {
+              local resource_type="$1"
+              local resource_name="$2"
+              local namespace="$3"
+
+              if kubectl get "$resource_type" "$resource_name" -n "$namespace" &>/dev/null; then
+                  return 0
+              else
+                  return 1
+              fi
+          }
+
+          # Function to check if a resource exists and has zero replicas.
+          # We only delete resources with zero replicas to avoid mistakenly releasing this to a unwanted cluster.
+          resource_exists_with_zero_replicas() {
+              local resource_type=$1
+              local resource_name=$2
+              local namespace=$3
+
+              if resource_exists "$resource_type" "$resource_name" "$namespace"; then
+                  # If the resource exists, get the number of replicas
+                  local replicas=$(kubectl get "$resource_type" "$resource_name" -n "$namespace" -o jsonpath='{.spec.replicas}')
+                  # Check if replicas are zero
+                  if [ "$replicas" == "0" ]; then
+                      return 0
+                  fi
+              fi
+              return 1
+          }
+
+          # Function to delete a resource
+          delete_resource() {
+              local resource_type=$1
+              local resource_name=$2
+              local namespace=$3
+
+              kubectl delete "$resource_type" "$resource_name" -n "$namespace"
+              echo "Resource $resource_type/$resource_name deleted in namespace $namespace."
+          }
+
+          # postgres
+          if resource_exists_with_zero_replicas statefulset postgres {{ .Values.namespace }}; then
+              delete_resource statefulset postgres-replica {{ .Values.namespace }}
+              delete_resource service postgres-replica {{ .Values.namespace }}
+              delete_resource networkpolicy postgres-replica-network-policy {{ .Values.namespace }}
+              delete_resource pvc postgres-replica-postgres-replica-0 {{ .Values.namespace }}
+              delete_resource pvc postgres-replica-postgres-replica-1 {{ .Values.namespace }}
+
+              delete_resource statefulset postgres {{ .Values.namespace }}
+              delete_resource service postgres {{ .Values.namespace }}
+              delete_resource networkpolicy postgres-network-policy {{ .Values.namespace }}
+              delete_resource pvc postgres-postgres-0 {{ .Values.namespace }}
+          else
+              echo "Resource statefulset/postgres in namespace {{ .Values.namespace }} does not exist or does not have zero replicas."
+          fi
+
+          # fluentd-cloudwatch
+          if resource_exists daemonset fluentd-cloudwatch kube-system; then
+              delete_resource daemonset fluentd-cloudwatch kube-system
+          else
+              echo "Resource daemonset/fluentd-cloudwatch in namespace kube-system does not exist."
+          fi
+          
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 100m
+            memory: 200Mi
