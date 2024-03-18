@@ -7,7 +7,7 @@ metadata:
   name: resource-manager-global
 rules:
   - apiGroups: ["", "apps"]
-    resources: ["configmaps", "pods", "deployments", "statefulsets", "services"]
+    resources: ["configmaps", "pods", "deployments", "statefulsets", "services", "daemonsets"]
     verbs: ["get", "list", "watch", "delete"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
