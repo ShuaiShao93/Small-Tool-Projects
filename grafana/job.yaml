@@ -1,0 +1,18 @@
+# variables:
+#  cluster: label_values(cluster)
+#  job_type: label_values(job_type)
+
+"Job Throughput":
+  query: sum by(le, cluster, job_type) (rate(job_completion_total{cluster=~"$cluster", job_type=~"$job_type"}[$__rate_interval]))
+  legend: {{cluster}} {{job_type}}
+  unit: counts per second
+
+"Job Failure Percentage":
+  query: sum by(cluster, job_type, status) (rate(job_completion_total{cluster=~"$cluster", job_type=~"$job_type", status!="completed"}[$__rate_interval])) / ignoring(status) group_left sum by(cluster, job_type) (rate(job_completion_total{cluster=~"$cluster", job_type=~"$job_type"}[$__rate_interval]))
+  legend: {{cluster}} {{job_type}} {{status}}
+  unit: percent(0-1)
+
+"P50 Job e2e Latency":
+  query: histogram_quantile(0.5, sum by(le, cluster, job_type) (rate(job_backend_e2e_seconds_bucket{cluster=~"$cluster", job_type=~"$job_type"}[$__rate_interval])))
+  legend: {{cluster}} {{job_type}}
+  unit: seconds
