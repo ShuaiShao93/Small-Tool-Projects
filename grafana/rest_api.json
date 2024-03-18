@@ -1,0 +1,24 @@
+# variables:
+#  cluster: label_values(cluster)
+#  path: label_values(path)
+
+{
+  "name": "QPS",
+  "query": "sum by(cluster, path, method) (rate(api_requests_total{cluster=~"$cluster", path=~"$path"}[$__rate_interval]))",
+  "legend" : "{{cluster}} {{method}} {{path}}",
+  "unit": "requests per sec",
+}
+
+{
+  "name": "Error percentage",
+  "query": "sum by(cluster, path, status_code, method) (rate(api_requests_total{cluster=~"$cluster", path=~"$path", status_code=~"^[5].*"}[$__rate_interval])) / ignoring(status_code) group_left sum by(cluster, path, method) (rate(api_requests_total{cluster=~"$cluster", path=~"$path"}[$__rate_interval]))",
+  "legend" : "{{cluster}} {{method}} {{path}} {{status_code}}",
+  "unit": "percent(0-1)",
+}
+
+{
+  "name": "P50 latency",
+  "query": "histogram_quantile(0.5, sum by(le, cluster, path, method) (rate(api_request_duration_seconds_bucket{path=~"$path", cluster=~"$cluster"}[$__rate_interval])))",
+  "legend" : "{{cluster}} {{method}} {{path}}",
+  "unit": "seconds",
+}
