@@ -1,0 +1,17 @@
+# variables:
+#  cluster: label_values(cluster)
+
+"Ready Messages":
+  query: sum by(cluster, queue) (rabbitmq_queue_messages_ready{cluster=~"$cluster"})
+  legend: {{cluster}} {{queue}}
+  unit: short
+
+"Delivered But Not Acked Messages":
+  query: sum by(cluster, queue) (rabbitmq_queue_messages_unacked{cluster=~"$cluster"})
+  legend: {{cluster}} {{queue}}
+  unit: short
+
+"Num of Consumers":
+  query: sum by(cluster, queue) (rabbitmq_queue_consumers{cluster=~"$cluster"})
+  legend: {{cluster}} {{queue}}
+  unit: short
