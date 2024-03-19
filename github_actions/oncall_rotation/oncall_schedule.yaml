@@ -1,0 +1,12 @@
+- start: 03-11-2024
+  end: 03-24-2024
+  primary: A
+  secondary: B
+- start: 03-25-2024
+  end: 04-07-2024
+  primary: B
+  secondary: C
+- start: 04-08-2024
+  end: 04-21-2024
+  primary: C
+  secondary: A
