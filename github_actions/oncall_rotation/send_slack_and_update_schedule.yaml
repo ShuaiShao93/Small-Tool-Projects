@@ -1,0 +1,42 @@
+# A workflow to set topics on oncall handoff event, and update the schedule file for outdated entries
+
+name: Send Slack Notification and Update Oncall Schedule
+on:
+  schedule:
+    - cron: '0 12 * * *'  # Runs at 12 PM UTC every day
+  workflow_dispatch:
+
+jobs:
+  send_notification_and_update_schedule:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10.13'
+
+    - name: Install dependencies
+      run: |
+        pip install pyyaml
+        pip install requests
+
+    - name: Run the script
+      run: python send_slack_and_update_schedule.py
+      env:
+        SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: Update oncall schedule
+        committer: github-actions <github-actions@github.com>
+        author: github-actions <github-actions@github.com>
+        title: "Update On-Call Schedule"
+        body: "Automatically generated PR to update the on-call schedule"
+        branch: "update-oncall"
+        delete-branch: true
+        team-reviewers: "my-team"
