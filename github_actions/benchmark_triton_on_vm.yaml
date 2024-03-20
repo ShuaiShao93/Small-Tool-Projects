@@ -224,6 +224,19 @@ jobs:
           name: benchmark-results
           path: perf.txt
 
+      - name: Import SSH key for signing
+        uses: webfactory/ssh-agent@v0.9.0
+        if: ${{ github.event.inputs.auto-commit == 'true' && github.ref != 'refs/heads/main' }}
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Configure git
+        if: ${{ github.event.inputs.auto-commit == 'true' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" > ssh_public_key.pub
+          git config --global gpg.format ssh
+          git config --global user.signingkey ssh_public_key.pub
+
       - name: Copy Benchmark Results
         if: ${{ github.ref != 'refs/heads/main' }}
         run: |
@@ -242,6 +255,7 @@ jobs:
           committer_email: actions@github.com
           pull: --rebase --autostash
           push: true
+          commit: -S
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
