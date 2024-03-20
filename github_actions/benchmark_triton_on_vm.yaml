@@ -16,7 +16,7 @@ env:
   INSTANCE_NAME: "wizard-benchmark-${GITHUB_RUN_NUMBER}"
   # Config file is like:
   # ModelA:
-  #   measurement_interval: 90000
+  #   measurement_request_count: 30
   #   stability_percentage: 20
   #   batch_size: 8
   #   string_length: [100, 500]
@@ -190,9 +190,18 @@ jobs:
       - name: Run Benchmark
         run: |
           set -e
+          echo "Loading model ${{ github.event.inputs.model-name }}"
+
+          START_TIME=$(date +%s)
+          curl -X POST "http://${{ env.VM_PUBLIC_IP }}:8000/v2/repository/models/${{ github.event.inputs.model-name }}/load" -d "{}"
+          END_TIME=$(date +%s)
+          LOAD_DURATION=$((END_TIME - START_TIME))
+          echo "Model ${{ github.event.inputs.model-name }} loaded in ${LOAD_DURATION} seconds." | tee -a perf.txt
+          echo -e "\n" | tee -a perf.txt
+
           echo "Running benchmark for ${{ github.event.inputs.model-name }}"
 
-          MEASUREMENT_INTERVAL=$(yq e ".${{ github.event.inputs.model-name }}.measurement_interval" $BENCHMARK_CONFIG)
+          MEASUREMENT_REQUEST_COUNT=$(yq e ".${{ github.event.inputs.model-name }}.measurement_request_count" $BENCHMARK_CONFIG)
           BATCH_SIZE=$(yq e ".${{ github.event.inputs.model-name }}.batch_size" $BENCHMARK_CONFIG)
           STRING_LENGTHS=$(yq e ".${{ github.event.inputs.model-name }}.string_length[]" $BENCHMARK_CONFIG)
           STABILITY_PERCENTAGE=$(yq e ".${{ github.event.inputs.model-name }}.stability_percentage" $BENCHMARK_CONFIG)
@@ -201,8 +210,9 @@ jobs:
             command="perf_analyzer \
               -m ${{ github.event.inputs.model-name }} \
               -u ${{ env.VM_PUBLIC_IP }}:8000 \
+              --measurement-mode=\"count_windows\" \
               --input-data=\"random\" \
-              --measurement-interval=\"$MEASUREMENT_INTERVAL\" \
+              --measurement-request-count=\"$MEASUREMENT_REQUEST_COUNT\" \
               -b \"$BATCH_SIZE\" \
               --string-length=\"$STRING_LENGTH\" \
             "
