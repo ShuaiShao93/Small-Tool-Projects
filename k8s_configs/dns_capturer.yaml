@@ -1,0 +1,66 @@
+# A helper daemonset to capture DNS queries from the pods.
+{{- if .Values.tools.capture_dns }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dns-capturer
+  namespace: {{ .Values.my_namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: dns-capturer
+  template:
+    metadata:
+      labels:
+        app: dns-capturer
+    spec:
+      hostNetwork: true
+      # SA must have access to list/get pods
+      serviceAccountName: {{ .Values.my_serviceaccount_name }}
+      containers:
+      - name: dns-capturer
+        image: ubuntu:latest
+        securityContext:
+          privileged: true
+        command:
+          - /bin/bash
+          - -c
+          - |
+            set -e
+
+            apt-get update && apt-get install -y tcpdump curl
+
+            echo "Installing kubectl..."
+            curl -LO "https://dl.k8s.io/release/v1.24.16/bin/linux/amd64/kubectl"
+            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+            echo "kubectl installed"
+
+            # Run tcpdump in a non-blocking, continuous manner
+            tcpdump -l -n port 53 | while IFS= read -r line; do
+              # The source IP has a trailing .{PORT}, so we need sed to remove it.
+              src_ip=$(echo "$line" | awk '{print $3}' | sed 's/\.[^.]*$//')
+              pod_name=$(kubectl get pod --all-namespaces -o jsonpath="{.items[?(@.status.podIP=='$src_ip')].metadata.name}")
+              namespace=$(kubectl get pod --all-namespaces -o jsonpath="{.items[?(@.status.podIP=='$src_ip')].metadata.namespace}")
+              if [ -n "$pod_name" ]; then
+                echo "$(date) - Pod: $pod_name, Namespace: $namespace - $line"
+              else
+                echo "$(date) - Pod name not found - $line"
+              fi
+            done
+        volumeMounts:
+        # Linux kernel modules
+        - name: lib-modules
+          mountPath: /lib/modules
+          readOnly: true
+        # Contains information about devices, drivers, and some kernel features.
+        - name: sys
+          mountPath: /sys
+          readOnly: true
+      volumes:
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+      - name: sys
+        hostPath:
+          path: /sys
+{{- end}}
