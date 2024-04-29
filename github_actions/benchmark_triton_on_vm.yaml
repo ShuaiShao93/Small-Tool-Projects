@@ -139,9 +139,13 @@ jobs:
           gcloud compute instances create ${{ env.INSTANCE_NAME }} \
               --service-account="github-actions@org.iam.gserviceaccount.com" \
               --zone="${{ env.ZONE }}" \
-              --machine-type="e2-standard-2" \
+              --machine-type="n1-standard-8" \
+              --accelerator="type=nvidia-tesla-t4,count=1" \
+              --metadata="install-nvidia-driver=True" \
+              --maintenance-policy TERMINATE --restart-on-failure \
+              --image=${CUSTOM_IMAGE_WITH_CUDA_INSTALLED} \
               --preemptible \
-              --boot-disk-size=40 \
+              --boot-disk-size=200 \
               --tags=triton-benchmark
 
           gcloud compute firewall-rules create allow-triton-server --direction=INGRESS --priority=1000 --network=default --action=ALLOW --rules=tcp:8000 --source-ranges=0.0.0.0/0 --target-tags=triton-benchmark
