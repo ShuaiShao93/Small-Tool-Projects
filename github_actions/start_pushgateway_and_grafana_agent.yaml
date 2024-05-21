@@ -1,0 +1,57 @@
+name: start-grafana-agent
+description: Start Pushgateway and Grafana Agent to remote write the metrics
+inputs:
+  url:
+    description: "URL of the remote prometheus to write the metrics to"
+    required: true
+  username:
+    description: "Username for the remote prometheus"
+    required: true
+  password:
+    description: "Password for the remote prometheus"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Start Prometheus Pushgateway
+      shell: bash
+      run: |
+        set -e
+
+        docker pull prom/pushgateway:v1.8.0
+        docker run -d -p 9091:9091 prom/pushgateway:v1.8.0
+
+    - name: Grafana Agent Config
+      shell: bash
+      run: |
+        set -e
+
+        mkdir -p /tmp/agent
+        cat <<EOF > /tmp/agent/agent.yaml
+        metrics:
+          global:
+            scrape_interval: 15s
+          configs:
+            - name: default
+              remote_write:
+                - url: "${{ inputs.url }}"
+                  basic_auth:
+                    username: "${{ inputs.username }}"
+                    password: "${{ inputs.password }}"
+              scrape_configs:
+                - job_name: "pushgateway"
+                  static_configs:
+                    - targets: ["localhost:9091"]
+        EOF
+
+    - name: Start Grafana Agent
+      shell: bash
+      run: |
+        set -e
+
+        docker pull grafana/agent:v0.40.5
+        docker run -d --name=grafana-agent --net=host \
+          -v /tmp/agent/agent.yaml:/etc/agent/agent.yaml \
+          -v /tmp/agent/wal:/etc/agent/data \
+          grafana/agent:v0.40.5
