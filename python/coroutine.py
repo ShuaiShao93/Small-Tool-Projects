@@ -28,6 +28,8 @@ async def while_loop(idx, use_sync_sleep):
         print(idx, i)
         i += 1
         if use_sync_sleep:
+            # Change this to `await asyncio.create_task(sync_sleep())`, we will see interleaved output.
+            # so awating an async function doesn't cause switch, but awaiting a future does
             await sync_sleep()
         else:
             await asyncio.sleep(1)
