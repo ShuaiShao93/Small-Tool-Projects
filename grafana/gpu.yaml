@@ -1,0 +1,7 @@
+
+"GPU Cost in Past 30 Days":
+  queryA: round(max by(origin_prometheus) (nv_gpu_memory_total_bytes{origin_prometheus=~"$customer"}) / 1000 / 1000 / 1000)
+  queryB: avg_over_time(count by(origin_prometheus) (nv_gpu_utilization{origin_prometheus=~"$customer"})[30d:10m])
+  ExprC: ($A == 48) * 0.97 + ($A == 24) * 0.38 + ($A == 40) * 1.2
+  ExprD: $B * $C * 24 * 30
+  unit: dollar
