@@ -1,0 +1,47 @@
+name: Upload Online Models
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  detect_and_upload:
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install `poetry`
+        run: pipx install poetry=="2.0.1"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          cache: "poetry"
+          python-version: "3.10"
+
+      - name: Get Changed Files
+        id: changed_files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: |
+            config/base/**
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run upload_model
+        if: steps.changed_files.outputs.any_changed == 'true'
+        run: |
+          for file in ${{ steps.changed_files.outputs.all_changed_files }}; do
+            poetry run python -m deploy.upload_model --model_config_path=$file
+          done
+        env:
+          HF_TOKEN: ${{ secrets.HUGGINGFACE_TOKEN }}
+          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          CLOUDFLARE_R2_ACCESS_KEY_SECRET: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_SECRET }}
