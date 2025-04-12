@@ -13,3 +13,10 @@
   query: sum by(origin_prometheus, pod) (container_memory_usage_bytes{container="api", origin_prometheus=~"$customer"})
   legend: Usage {{origin_prometheus}} {{pod}}
   unit: bytes
+
+"Pod Failure":
+  queryA: sum by(pod, origin_prometheus) (increase(kube_pod_container_status_restarts_total{namespace=~".*X.*"}[5m]))
+  queryB: sum by(pod, origin_prometheus) (kube_pod_status_phase{namespace=~".*X.*", phase="Failed"})
+  queryC: sum by(pod, origin_prometheus) (kube_pod_container_status_waiting_reason{namespace=~".*X.*", reason=~"ImagePullBackOff|ErrImagePull"})
+  exprD: $A || $B || $C
+  legend: {{origin_prometheus}} {{pod}}
