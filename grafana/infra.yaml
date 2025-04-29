@@ -32,6 +32,6 @@ sum by(pod, origin_prometheus) (
     }[1h]
   )
 )
-  queryB: kube_pod_status_phase{namespace=~".*X.*", phase="Pending"}
+  queryB: sum by(pod, origin_prometheus) (kube_pod_status_phase{namespace=~".*X.*", phase="Pending"})
   exprC: $A && $B
   thresholdD: > 0
