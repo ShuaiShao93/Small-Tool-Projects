@@ -35,3 +35,15 @@ sum by(pod, origin_prometheus) (
   queryB: sum by(pod, origin_prometheus) (kube_pod_status_phase{namespace=~".*X.*", phase="Pending"})
   exprC: $A && $B
   thresholdD: > 0
+
+"Failing HPA"
+  queryA: 
+sum by(horizontalpodautoscaler, origin_prometheus) (
+  kube_horizontalpodautoscaler_status_condition{condition="AbleToScale", status="false"}
+)
+  queryB:
+sum by(horizontalpodautoscaler, origin_prometheus) (
+  kube_horizontalpodautoscaler_status_condition{condition="ScalingActive", status="false"}
+)
+  exprC: $A || $B
+  
