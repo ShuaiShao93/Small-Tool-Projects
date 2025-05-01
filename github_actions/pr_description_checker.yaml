@@ -1,0 +1,37 @@
+name: Check PR Description
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  check-description:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Check PR description
+        id: check
+        run: |
+          if [[ "${{ github.event.pull_request.body }}" =~ TESTED=.+ ]]; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "valid=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Comment or hide if needed
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            ❌ **TESTED missing or empty**
+            Please run integration tests on the pending branch,
+            and add `TESTED={RESULTS}` to the description of this PR.
+          # Hide previous comment if valid
+          hide: ${{ steps.check.outputs.valid == 'true' }}
+          only_update: ${{ steps.check.outputs.valid == 'true' }}
+
+      - name: Fail if invalid
+        if: steps.check.outputs.valid == 'false'
+        run: |
+          echo "**TESTED missing or empty in PR description**"
+          exit 1
