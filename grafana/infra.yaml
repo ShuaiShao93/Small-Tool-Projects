@@ -17,9 +17,11 @@
 "Pod Failure":
   queryA: sum by(pod, origin_prometheus) (increase(kube_pod_container_status_restarts_total{namespace=~".*X.*"}[5m]))
   queryB: sum by(pod, origin_prometheus) (kube_pod_status_phase{namespace=~".*X.*", phase="Failed"})
-  queryC: sum by(pod, origin_prometheus) (kube_pod_container_status_waiting_reason{namespace=~".*X.*", reason=~"ImagePullBackOff|ErrImagePull"})
-  exprD: $A || $B || $C
+  exprD: $A || $B
   legend: {{origin_prometheus}} {{pod}}
+
+"Pod err pull image":
+  query: sum by(pod, origin_prometheus) (kube_pod_container_status_waiting_reason{namespace=~".*X.*", reason=~"ImagePullBackOff|ErrImagePull"})
 
 "Unscheduleable Pod"
   queryA:  
