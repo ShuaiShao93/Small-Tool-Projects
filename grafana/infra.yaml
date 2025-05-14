@@ -1,16 +1,16 @@
 
 "CPU Usage":
-  query: max by(origin_prometheus, pod) (container_memory_usage_bytes{container="api", origin_prometheus=~"$customer"})
+  query: max by(origin_prometheus, pod) (container_memory_usage_bytes{container=~"api.*|postgres.*", origin_prometheus=~"$customer"})
   legend: Usage {{origin_prometheus}} {{pod}}
   unit: bytes
 
 "CPU Limit":
-  query: max by(pod, origin_prometheus) (kube_pod_container_resource_limits{container="api", origin_prometheus=~"$customer", resource="memory"})
+  query: max by(pod, origin_prometheus) (kube_pod_container_resource_limits{container=~"api.*|postgres.*", origin_prometheus=~"$customer", resource="memory"})
   legend: Limit {{origin_prometheus}} {{pod}}
   unit: bytes
 
 "Memory Usage":
-  query: max by(origin_prometheus, pod) (container_memory_usage_bytes{container="api", origin_prometheus=~"$customer"})
+  query: max by(origin_prometheus, pod) (container_memory_usage_bytes{container=~"api.*|postgres.*", origin_prometheus=~"$customer"})
   legend: Usage {{origin_prometheus}} {{pod}}
   unit: bytes
 
