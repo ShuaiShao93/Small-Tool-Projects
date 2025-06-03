@@ -11,6 +11,4 @@ table:
     origin_prometheus: GroupBy
     queryA: Calculate Last
     queryB: Calculate Last
-  transformationC: Organize fields by name
-    hide time
-    rename others
+  transformationC: Organize fields by name (rename columns)
