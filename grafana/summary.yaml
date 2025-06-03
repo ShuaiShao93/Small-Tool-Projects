@@ -6,6 +6,11 @@ table:
     sum by(origin_prometheus) (increase(job_completion_total[$__range]))
     Format: Table
   transformationA: Merge
-  transformationB: Organize fields by name
+  transformationB: Group by
+    time: Ignored
+    origin_prometheus: GroupBy
+    queryA: Calculate Last
+    queryB: Calculate Last
+  transformationC: Organize fields by name
     hide time
     rename others
