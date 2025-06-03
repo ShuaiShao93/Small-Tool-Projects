@@ -1,0 +1,11 @@
+table:
+  queryA:
+    sum by(origin_prometheus) (increase(api_requests_total{path!~"/internal.*"}[$__range]))
+    Format: Table
+  queryB:
+    sum by(origin_prometheus) (increase(job_completion_total[$__range]))
+    Format: Table
+  transformationA: Merge
+  transformationB: Organize fields by name
+    hide time
+    rename others
