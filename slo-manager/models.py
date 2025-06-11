@@ -34,6 +34,8 @@ class NormalizedAlertRuleModelA(BaseModel):
 
     editorMode: str = "builder"
     expr: str
+    instant: bool = True
+    range: bool = False
     refId: str = "A"
 
     def __str__(self) -> str:
